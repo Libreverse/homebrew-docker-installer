@@ -322,12 +322,19 @@ version_lt() {
 }
 
 check_run_command_as_root() {
+  # Check if not root, return early
   [[ "${EUID:-${UID}}" == "0" ]] || return
 
-  # Allow Azure Pipelines/GitHub Actions/Docker/Concourse/Kubernetes to do everything as root (as it's normal there)
-  [[ -f /.dockerenv ]] && return
-  [[ -f /run/.containerenv ]] && return
-  [[ -f /proc/1/cgroup ]] && grep -E "azpl_job|actions_job|docker|garden|kubepods" -q /proc/1/cgroup && return
+  # Allow Azure Pipelines/GitHub Actions/Docker/Concourse/Kubernetes to do everything as root (as it's normal there). 
+  # If these detection methods fail use OS_ENV container to tell us directly.
+  if 
+    [[ -f /.dockerenv ]] || 
+    [[ -f /run/.containerenv ]] || 
+    ([[ -f /proc/1/cgroup ]] && grep -E "azpl_job|actions_job|docker|garden|kubepods" -q /proc/1/cgroup) || 
+    [[ -n "$OS_ENV" && "$OS_ENV" == "container" ]]
+  then
+    return
+  fi
 
   abort "Don't run this as root!"
 }
